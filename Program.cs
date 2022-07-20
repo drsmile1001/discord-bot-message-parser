@@ -1,5 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.RegularExpressions;
+using DiscordBotMessageParser;
+using Microsoft.EntityFrameworkCore;
 
 var files = Directory.GetFiles("inputs");
 
@@ -76,10 +78,23 @@ var messages = files.SelectMany(filePath =>
 })
 .Where(item => item != null)
 .Distinct()
-.ToArray();
-
-foreach (var item in messages)
+.GroupBy(item => item!.key)
+.SelectMany(group =>
 {
-    Console.WriteLine($"{item!.key} {item.value}");
-}
-Console.WriteLine($"length: {messages.Length}");
+    var index = group.Key;
+
+    return group.Select((item, sn) => new MessagePreset
+    {
+        Id = Guid.NewGuid().ToString(),
+        Index = index,
+        SeriesNumber = sn,
+        Text = item!.value,
+    });
+}).ToArray();
+
+
+var dbcontext = new BotDbContext(new DbContextOptionsBuilder<BotDbContext>()
+    .UseSqlite("Data Source=./discord.db")
+    .Options);
+dbcontext.AddRange(messages);
+dbcontext.SaveChanges();
